@@ -8,6 +8,16 @@ require('chai')
   .use(require('chai-bn')(BN))
   .should();
 
+const expectRevert = async promise => {
+  try {
+    await promise;
+    assert.fail('Expected revert not received');
+  } catch (error) {
+    const revertFound = error.message.search('revert') >= 0;
+    assert(revertFound, `Expected "revert", got ${error} instead`);
+  }
+};
+
 contract('MultisigWallet', async ([owner0, owner1, owner2, notOwner]) => {
 
   describe('# MultisigWallet basic functions', async () => {
@@ -38,6 +48,16 @@ contract('MultisigWallet', async ([owner0, owner1, owner2, notOwner]) => {
 
       const result2 = await wallet.confirmTransaction(transactionId, {from: owner1}).should.be.fulfilled;
       result2.logs[0].event.should.be.equal("Execution");
+    });
+
+    it("shouldn't execute transaction twice", async () => {
+      const wallet = await MultisigWallet.new([owner0, owner1, owner2], 2);
+      const txResult = await wallet.submitTransaction(notOwner, w3utils.toWei('1', 'ether'), '0x0', {value: w3utils.toWei('2', 'ether')}).should.be.fulfilled;
+      const transactionId = txResult.logs[0].args['transactionId'];
+
+      const result2 = await wallet.confirmTransaction(transactionId, {from: owner1}).should.be.fulfilled;
+      result2.logs[0].event.should.be.equal("Execution");
+      await expectRevert(wallet.confirmTransaction(transactionId, {from: owner1}));
     });
 
     it("should transfer erc20 tokens when confirmed", async () => {

@@ -99,6 +99,7 @@ contract MultisigWallet {
 
     function executeTransaction(uint transactionId) private {
         Transaction storage transaction = transactions[transactionId];
+        require(transaction.executed == false, 'Transaction is already executed');
         transaction.executed = true;
         (bool success,) = transaction.receiver.call.value(transaction.value)(transaction.data);
         if (success) {
