@@ -4,7 +4,8 @@ contract MultisigWallet {
 
     event Execution(uint transactionId);
     event ExecutionFailure(uint transactionId);
-    event Submitted(uint transactionId);
+    event Submitted(uint transactionId, address submitter);
+    event Confirmed(uint transactionId, address confirmer);
 
     struct Transaction {
         address receiver;
@@ -22,16 +23,18 @@ contract MultisigWallet {
     uint public transactionCount;
 
     modifier ownerExists(address owner) {
-        if (!isOwner[owner]) {
-            revert();
-        }
+        require(
+            isOwner[owner],
+            "Caller should be in owners"
+        );
         _;
     }
 
     modifier transactionExists(uint transactionId) {
-        if (transactions[transactionId].receiver == address(0x0)) {
-            revert();
-        }
+        require(
+            transactions[transactionId].receiver != address(0x0),
+            "Transaction by that id does not exist"
+        );
         _;
     }
 
@@ -73,7 +76,7 @@ contract MultisigWallet {
             executed: false
         });
         transactionCount += 1;
-        emit Submitted(transactionId);
+        emit Submitted(transactionId, msg.sender);
 
         confirmTransaction(transactionId);
     }
@@ -82,8 +85,13 @@ contract MultisigWallet {
         public 
         ownerExists(msg.sender) 
         transactionExists(transactionId) {
+        require(
+            confirmations[transactionId][msg.sender] == false, 
+            "Already confirmed"
+        );
 
         confirmations[transactionId][msg.sender] = true;
+        emit Confirmed(transactionId, msg.sender);
 
         uint count = 0;
         for (uint i=0; i<owners.length; i++) {
@@ -101,7 +109,7 @@ contract MultisigWallet {
         Transaction storage transaction = transactions[transactionId];
         require(transaction.executed == false, 'Transaction is already executed');
         transaction.executed = true;
-        (bool success,) = transaction.receiver.call.value(transaction.value)(transaction.data);
+        (bool success,) = transaction.receiver.call{value: transaction.value}(transaction.data);
         if (success) {
             emit Execution(transactionId);
         } else {
