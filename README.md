@@ -23,6 +23,7 @@ $ node cli.js deploy
 
 ## Select private\public keys to execute transaction
 Add --callerNumber with number of keys from the provided environment
+
 Defaults fo first keys from the provided environment
 
 ## Deploy Multisig contract
@@ -30,7 +31,9 @@ Defaults fo first keys from the provided environment
 $ node cli.js deploy
 ```
 With '--ownersCount n' owners will be first n public keys from environment. Defaults to 3.
+
 '--owners addr1 addr2 addrn' provide means to set them explicidly
+
 '--requiredSigs' sets required signatures to execute a transaction. Defaults to 2.
 
 ## Submit Ether transaction
@@ -44,6 +47,7 @@ Will automatically transfer required amount of ether from caller to a wallet con
 $ node cli.js submittokentransaction --to 0xbAe734893aa112c558Fef318EE558D5D0A955794 --amount 1 --currencyType gwei --tokenAddress 0x695F14f7b098FfeB2573B0db2082316831b2b825
 ```
 '--tokenAddress' represends address of ERC20 token smart contract
+
 Will first make a transaction to transfer required amount of tokens from the caller to the wallet contract
 
 ## Confirm transaction
@@ -66,4 +70,5 @@ $ node cli.js deploytesttoken
 $ node cli.js tokeninfo --tokenAddress 0x695F14f7b098FfeB2573B0db2082316831b2b825
 ```
 Provides amount for a current caller by default
+
 '--address' can be used to set address explicidly
