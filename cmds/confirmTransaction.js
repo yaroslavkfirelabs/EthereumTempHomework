@@ -1,69 +1,56 @@
-const {web3, deploymentAccountAddress, from, gasPrice, deploymentPrivateKey} = require('../utils/web3');
-const {sendRawTx} = require('../utils');
-const fs = require('fs');
-const w3utils = require('web3-utils');
-const {safeEnv} = require('../utils');
+const {
+  setup,
+  builder
+} = require('./common');
+const getClient = require('../utils/client');
 const MultisigWallet = require('../build/contracts/MultisigWallet');
-const { address } = require(`../results.${safeEnv()}.json`);
+const {
+  findLogType
+} = require('../utils/utility');
 
 
 async function main(argv) {
-    const { transactionId, publicKey, privateKey } = argv;
-    await confirmTransaction(transactionId, publicKey, Buffer.from(privateKey, 'hex'));
+  const context = setup(argv);
+
+  const {
+    address
+  } = require(`../results.${context.environment}.json`);
+  const {
+    transactionId
+  } = argv;
+  await confirmTransaction(address, transactionId, context);
 };
 
-async function confirmTransaction(transactionId, publicKey, privateKey) {
-    const nonce = await web3.eth.getTransactionCount(publicKey);
-    console.log(`\n[Multisig] Confirming wallet transaction`);
-    console.log(`\n[Multisig] Id: ${transactionId}`);
+async function confirmTransaction(contractAddress, transactionId, {
+  web3,
+  callerKeys,
+  config
+}) {
+  console.log(`\n[Multisig] Confirming wallet transaction`);
+  console.log(`\n[Multisig] Transaction id: ${transactionId}`);
+  const client = getClient(web3, callerKeys, config);
+  const tx = await client.sendTransaction(MultisigWallet, contractAddress,
+    'confirmTransaction', [transactionId]);
 
-    const options = {
-        from,
-        gasPrice
-    };
-
-    const instance = new web3.eth.Contract(MultisigWallet.abi, address, options);
-    let data = await instance.methods.confirmTransaction(transactionId).encodeABI();
-
-    const tx = await sendRawTx({
-        nonce: w3utils.toHex(nonce), 
-        to: address,
-        data,
-        value: 0,
-        privateKey
-    });
-
-    console.log(`\n[Multisig] Transaction send: ${tx.transactionHash}`);
-    const log = decoder(tx.logs, MultisigWallet.abi);
-    if (log.length > 0) {
-        console.log(`\n[Multisig] Wallet transaction is executed`);
-    }
+  console.log(`\n[Multisig] Transaction send: ${tx.transactionHash}`);
+  const executeEvent = findLogType(tx, MultisigWallet.abi, 'Execution');
+  if (executeEvent) {
+    console.log(`\n[Multisig] Wallet transaction is executed`);
+  }
+  const failedEvent = findLogType(tx, MultisigWallet.abi, 'ExecutionFailure');
+  if (failedEvent) {
+    console.log(`\n[Multisig] Wallet transaction failed`);
+    console.log(`\n[Multisig] Fail reason: ${failedEvent.reason}`);
+  }
 }
-
-function decoder(logs, abi) {
-    const topics = {};
-    const args = abi.filter(x=>x.type === "event").forEach(e=>topics[e.signature]=e);
-    
-    let results = logs.filter(x=>x.topics.filter(t=>topics[t]).length > 0);
-    return results.map(log=>{ return {args:web3.eth.abi.decodeLog(topics[log.topics[0]].inputs, log.data, log.topics), event:topics[log.topics[0]].name}});
-} 
 
 exports.handler = main;
 exports.command = 'confirmtransaction [options]';
 exports.describe = 'Confirm transaction to Multisig Wallet';
 exports.builder = {
+  ...builder,
   transactionId: {
     demandOption: true,
     type: 'string',
   },
-  publicKey: {
-      demandOption: false,
-      type: 'string',
-      default: deploymentAccountAddress
-  },
-  privateKey: {
-      demandOption: false,
-      type: 'string',
-      default: deploymentPrivateKey
-  }
 };

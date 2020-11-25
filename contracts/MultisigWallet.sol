@@ -3,7 +3,7 @@ pragma solidity >=0.4.22 <0.8.0;
 contract MultisigWallet {
 
     event Execution(uint transactionId);
-    event ExecutionFailure(uint transactionId);
+    event ExecutionFailure(uint transactionId, string reason);
     event Submitted(uint transactionId, address submitter);
     event Confirmed(uint transactionId, address confirmer);
 
@@ -109,12 +109,21 @@ contract MultisigWallet {
         Transaction storage transaction = transactions[transactionId];
         require(transaction.executed == false, 'Transaction is already executed');
         transaction.executed = true;
-        (bool success,) = transaction.receiver.call{value: transaction.value}(transaction.data);
+        (bool success, bytes memory data) = transaction.receiver.call{value: transaction.value}(transaction.data);
         if (success) {
             emit Execution(transactionId);
         } else {
             transaction.executed = false;
-            emit ExecutionFailure(transactionId);
+            emit ExecutionFailure(transactionId, getRevertMsg(data));
         }
+    }
+
+    function getRevertMsg(bytes memory returnData) internal pure returns (string memory) {
+        if (returnData.length < 68) return 'Transaction reverted silently';
+
+        assembly {
+            returnData := add(returnData, 0x04)
+        }
+        return abi.decode(returnData, (string));
     }
 }
